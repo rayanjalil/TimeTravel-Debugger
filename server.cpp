@@ -107,227 +107,206 @@ public:
         // this is what buildSnapshot() call, returns count written
     }
 };
+// Timeline : doubly linked list of Snapshots
+struct Snapshot; // fwd declaration;
+struct TimelineNode
+{
+    Snapshot *data;
+    TimelineNode *next;
+    TimelineNode *prev;
+};
+class Timeline
+{
+    TimelineNode *head, *tail;
+    int32_t stepCount;
+
+public:
+    // Implement these functions
+    Timeline()
+    {
+        head = tail = nullptr;
+        stepCount = 0;
+    }
+    void record(Snapshot *s)
+    {
+        TimelineNode* node = new TimelineNode;
+        node->data = s;
+        node->next = nullptr;
+        node->prev = nullptr;
+        if(head == nullptr)
+        {
+            head = tail = node;
+        }
+        else
+        {
+            tail->next = node;
+            node->prev = tail;
+            tail = node;
+        }
+        stepCount++;
+        // add record in the timeline
+    }
+    TimelineNode *begin()
+    {
+        return head;
+    }
+    int32_t getStepCount()
+    {
+        return stepCount;
+    }
+};
+
+// Core structs
+struct Variable
+{
+    string name;
+    int32_t value;
+};
+struct Frame
+{
+    string func_name;
+    int32_t argc;
+    Variable argv[MAX_VARS_PER_FRAME];
+    int32_t returnLine;
+    Variable locals[MAX_VARS_PER_FRAME];
+    int32_t localCount;
+};
+struct Snapshot
+{
+    Frame callStack[MAX_STACK_DEPTH];
+    int32_t stackDepth;
+};
+struct TTDBHeader
+{
+    char magic[4]; // "TTDB"
+    int32_t version;
+    int32_t stepCount;
+    int64_t indexOffset;
+};
+void writeHeader(FILE *f, const TTDBHeader &h)
+{
+    fwrite(h.magic, 1, 4, f);
+    fwrite(&h.version, sizeof(int32_t), 1, f);
+
+    // placeholder for other two data members
+}
+
+// resolve.bin - bookkeeping
+struct FuncEntry
+{
+    string funcName;
+    int64_t byteOffsetInResolveBin; // where this function's FUNC header record sits
+};
+struct PendingPatch
+{
+    int64_t byteOffsetOfOffsetField; // where in resolve.bin to seek back and overwrite
+    string targetFuncName;
+};
 
 
-// // Timeline : doubly linked list of Snapshots
-// struct Snapshot; // fwd declaration;
-// struct TimelineNode
-// {
-//     Snapshot *data;
-//     TimelineNode *next;
-//     TimelineNode *prev;
-// };
-// class Timeline
-// {
-//     TimelineNode *head, *tail;
-//     int32_t stepCount;
 
-// public:
-//     // Implement these functions
-//     Timeline()
-//     {
-//         data = nullptr;
-//         next = prev = nullptr;
-//     }
-//     void record(Snapshot *s)
-//     {
-//         // add record in the timeline
-//     }
-//     TimelineNode *begin()
-//     {
-//     }
-//     int32_t getStepCount()
-//     {
-//     }
-// };
+// PASS 0x0: READING source.bin + VALIDITY CHECK
+bool readSourceLine(ifstream &in, string &out)
+{
+    // reads the next nonblank line
+}
+string firstWord(const string &line)
+{
+    // returns first word from the input string
+}
+string secondWord(const string &line)
+{
+    // returns the second word
+}
+bool validateProgram(const char *sourcePath)
+{
+    // for each func defined there should be exactly one func_end and no nested funcs allowed - 
+}
 
-// // Core structs
-// struct Variable
-// {
-//     string name;
-//     int32_t value;
-// };
-// struct Frame
-// {
-//     string func_name;
-//     int32_t argc;
-//     Variable argv[MAX_VARS_PER_FRAME];
-//     int32_t returnLine;
-//     Variable locals[MAX_VARS_PER_FRAME];
-//     int32_t localCount;
-// };
-// struct Snapshot
-// {
-//     Frame callStack[MAX_STACK_DEPTH];
-//     int32_t stackDepth;
-// };
-// struct TTDBHeader
-// {
-//     char magic[4]; // "TTDB"
-//     int32_t version;
-//     int32_t stepCount;
-//     int64_t indexOffset;
-// };
-// void writeHeader(FILE *f, const TTDBHeader &h)
-// {
-//     fwrite(h.magic, 1, 4, f);
-//     fwrite(&h.version, sizeof(int32_t), 1, f);
+// PASS 0x1: RESOLVE() -> resolve.bin
+int64_t writeResolveRecord(FILE *f, int64_t offsetField, const string &text)
+{
+    // writes one [offset(8B)][size(4B)][string] record at the current file position
+    // returns this record's own starting byte position
+}
+int64_t readResolveRecord(FILE *f, string &outText)
+{
+    // reads one record at the current position and advances past it, returns the offset field - the raw line text comes back untouched in outText.
+}
+int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
+{
+    FuncEntry funcArray[MAX_FUNCS];
+    int32_t funcCount = 0;
+    PendingPatch patches[MAX_PATCHES];
+    int32_t patchCount = 0;
+    // Every source line becomes one record holding the raw line, as-is.
+    // resolve() only PEEKS at the leading word(s) -- enough to spot FUNC
+    // (remember its position) and CALL (remember which function it needs
+    // and where its offset field sits).
+    // Once the whole file is written, every CALL's offset field is patched
+    // with its target's position. Patching happens after the full write
+    // Returns the byte offset of main's FUNC header record.
+    // if there is no main return the error 
+}
 
-//     // placeholder for other two data members
-// }
+// PASS 0x2: EXECUTION (tokenization happens here)
+enum TokenType
+{
+    KEYWORD,
+    IDENTIFIER,
+    PARAM
+};
+struct Token
+{
+    TokenType type;
+    string text;
+};
+int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
+{
+    // first word is always a instruction keyword
+    // instruction set = [func, func_end, call, set, add, sub, mul and div]
+    // next word is identifier like name of a function, variable name
+    // after identifier all are the params/arg, space separated
+}
+Snapshot *buildSnapshot(Stack<Frame> &callStack)
+{
+    // build the snapshot based on the callStack given
+}
+void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &timeline)
+{
+    // initialize the call stack
+    // make the main frame
+    // push main frame on the call stack
 
-// // resolve.bin - bookkeeping
-// struct FuncEntry
-// {
-//     string funcName;
-//     int64_t byteOffsetInResolveBin; // where this function's FUNC header record sits
-// };
-// struct PendingPatch
-// {
-//     int64_t byteOffsetOfOffsetField; // where in resolve.bin to seek back and overwrite
-//     string targetFuncName;
-// };
+    // implementation:
+    // execute line by line, and according to the keyword perform action
+}
 
-
-
-// // PASS 0x0: READING source.bin + VALIDITY CHECK
-// bool readSourceLine(ifstream &in, string &out)
-// {
-//     // reads the next nonblank line
-// }
-// string firstWord(const string &line)
-// {
-//     // returns first word from the input string
-// }
-// string secondWord(const string &line)
-// {
-//     // returns the second word
-// }
-// bool validateProgram(const char *sourcePath)
-// {
-//     // for each func defined there should be exactly one func_end and no nested funcs allowed - 
-// }
-
-// // PASS 0x1: RESOLVE() -> resolve.bin
-// int64_t writeResolveRecord(FILE *f, int64_t offsetField, const string &text)
-// {
-//     // writes one [offset(8B)][size(4B)][string] record at the current file position
-//     // returns this record's own starting byte position
-// }
-// int64_t readResolveRecord(FILE *f, string &outText)
-// {
-//     // reads one record at the current position and advances past it, returns the offset field - the raw line text comes back untouched in outText.
-// }
-// int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
-// {
-//     FuncEntry funcArray[MAX_FUNCS];
-//     int32_t funcCount = 0;
-//     PendingPatch patches[MAX_PATCHES];
-//     int32_t patchCount = 0;
-//     // Every source line becomes one record holding the raw line, as-is.
-//     // resolve() only PEEKS at the leading word(s) -- enough to spot FUNC
-//     // (remember its position) and CALL (remember which function it needs
-//     // and where its offset field sits).
-//     // Once the whole file is written, every CALL's offset field is patched
-//     // with its target's position. Patching happens after the full write
-//     // Returns the byte offset of main's FUNC header record.
-//     // if there is no main return the error 
-// }
-
-// // PASS 0x2: EXECUTION (tokenization happens here)
-// enum TokenType
-// {
-//     KEYWORD,
-//     IDENTIFIER,
-//     PARAM
-// };
-// struct Token
-// {
-//     TokenType type;
-//     string text;
-// };
-// int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
-// {
-//     // first word is always a instruction keyword
-//     // instruction set = [func, func_end, call, set, add, sub, mul and div]
-//     // next word is identifier like name of a function, variable name
-//     // after identifier all are the params/arg, space separated
-// }
-// Snapshot *buildSnapshot(Stack<Frame> &callStack)
-// {
-//     // build the snapshot based on the callStack given
-// }
-// void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &timeline)
-// {
-//     // initialize the call stack
-//     // make the main frame
-//     // push main frame on the call stack
-
-//     // implementation:
-//     // execute line by line, and according to the keyword perform action
-// }
-
-// // PASS 0x3: SERIALIZE TIMELINE
-// void writeTdbg(Timeline &timeline, const char *tdbgPath)
-// {
-//     // placeholder for header
-//     // index array of the size of stepcount from the timeline
-//     // placing each snapshot in the file while maintaining the index(starting point of each nth snapshot)
-//     // after timeline add the index array i the file
-//     // update the header
-// }
+// PASS 0x3: SERIALIZE TIMELINE
+void writeTdbg(Timeline &timeline, const char *tdbgPath)
+{
+    // placeholder for header
+    // index array of the size of stepcount from the timeline
+    // placing each snapshot in the file while maintaining the index(starting point of each nth snapshot)
+    // after timeline add the index array i the file
+    // update the header
+}
 // main section
 int32_t realmain()
 {
 
-    // if (!validateProgram("source.bin"))
-    // {
-    //     // send an error response instead of a .tdbg file
-    //     return 1;
-    // }
-
-    // int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
-
-    // Timeline timeline;
-    // executeProgram("resolve.bin", mainOffset, timeline);
-
-    // writeTdbg(timeline, "session.tdbg");
-
-    return 0;
-}
-int main()
-{
-    Stack<int> s;
-
-    cout << "empty? " << s.isEmpty() << " (expect 1)" << endl;
-
-    s.push(10);
-    s.push(20);
-    s.push(30);
-    cout << "depth: " << s.depth() << " (expect 3)" << endl;
-    cout << "peek: " << s.peek() << " (expect 30)" << endl;
-
-    int out[10];
-    int n = s.snapshot_into(out, 10);
-    cout << "snapshot (" << n << " items): ";
-    for (int i = 0; i < n; i++)
-        cout << out[i] << " ";
-    cout << "(expect 30 20 10)" << endl;
-
-    cout << "pop: " << s.pop() << " (expect 30)" << endl;
-    cout << "pop: " << s.pop() << " (expect 20)" << endl;
-    cout << "pop: " << s.pop() << " (expect 10)" << endl;
-    cout << "empty? " << s.isEmpty() << " (expect 1)" << endl;
-
-    try
+    if (!validateProgram("source.bin"))
     {
-        s.pop();
-        cout << "no error thrown (BAD)" << endl;
+        // send an error response instead of a .tdbg file
+        return 1;
     }
-    catch (const underflow_error &e)
-    {
-        cout << "underflow caught (good): " << e.what() << endl;
-    }
+
+    int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
+
+    Timeline timeline;
+    executeProgram("resolve.bin", mainOffset, timeline);
+
+    writeTdbg(timeline, "session.tdbg");
 
     return 0;
 }
