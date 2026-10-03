@@ -204,19 +204,73 @@ struct PendingPatch
     string targetFuncName;
 };
 
-
-
 // PASS 0x0: READING source.bin + VALIDITY CHECK
 bool readSourceLine(ifstream &in, string &out)
 {
+    string line;
+    while(getline(in,line))
+    {
+        if(!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+        bool blank = true;
+        for(int i = 0 ; i < line.size() ; i++)
+        {
+            if(line[i] != ' ' && line[i] != '\t')
+            {
+                blank = false;
+                break;
+            }
+        }
+        if(blank)
+        {
+            continue;
+        }
+        out = line;
+        return true;
+    }
+    return false;
     // reads the next nonblank line
 }
 string firstWord(const string &line)
 {
+    int i = 0;
+    while(i < line.size() && (line[i] == ' ' || line[i] == '\t'))
+    {
+        i++;
+    }
+    string word = "";
+    while(i < line.size() && line[i] != ' ' && line[i] != '\t')
+    {
+        word = word + line[i];
+        i++;
+    }
+    return word;
     // returns first word from the input string
 }
 string secondWord(const string &line)
 {
+    int i = 0;
+    while(i < line.size() && (line[i] == ' ' || line[i] == '\t'))
+    {
+        i++;
+    }
+    while(i < line.size() && line[i] != ' ' && line[i] != '\t')
+    {
+        i++;
+    }
+    while(i < line.size() && (line[i] == ' ' || line[i] == '\t'))
+    {
+        i++;
+    }
+    string word = "";
+    while(i < line.size() && line[i] != ' ' && line[i] != '\t')
+    {
+        word = word + line[i];
+        i++;
+    }
+    return word;
     // returns the second word
 }
 bool validateProgram(const char *sourcePath)
