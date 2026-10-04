@@ -275,6 +275,47 @@ string secondWord(const string &line)
 }
 bool validateProgram(const char *sourcePath)
 {
+    ifstream file(sourcePath);
+    if(!file)
+    {
+        cout << "File not found" << endl;
+        return false;
+    }
+    bool isinfunc = false;
+    string line;
+    while(readSourceLine(file,line))
+    {
+        string word = firstWord(line);
+        if(word == "func")
+        {
+            if(isinfunc)
+            {
+                cout << "Nested function found" << line << endl;
+                return false;
+            }
+            if(secondWord(line) == "")
+            {
+                cout << "Function has no name" << line << endl;
+                return false;
+            }
+            isinfunc = true;
+        }
+        else if(word == "func_end")
+        {
+            if(!isinfunc)
+            {
+                cout << "Func end without starting func" << endl;
+                return false;
+            }
+            isinfunc = false;
+        }
+    }
+    if(isinfunc)
+    {
+        cout << "Missing func end" << endl;
+        return false;
+    }
+    return true;
     // for each func defined there should be exactly one func_end and no nested funcs allowed - 
 }
 

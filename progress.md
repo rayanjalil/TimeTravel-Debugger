@@ -5,3 +5,6 @@ Made Timelineclass in which i initiliazed the constructor and then made record i
 3/10/2026
 Day 2:
 made writeheader function in which i had to write for stepcount and index offset . Made read sourceline function which basically checks whether a line is blank or not and stores it in a string and which can be used later on the string wont contain any blank spaces or anything it will contain useful lines. Made read forst word it will ignore the spaces in the starting then counter will increase and counter will start from when we find first word we read the first word in a string and return it.in read second word we do the same first ignore spaces before first word then ignore the first word and then ignore spaces after first word store it in a string and return it.
+4/10/2026
+Day 3:
+started today by making validate program function which sees if the function is valid or not used readsourceline , firstword and second word in this function too now moving too write resolverecord
