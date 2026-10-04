@@ -2,3 +2,4 @@ server
 server.dSYM/
 *.bin
 *.tdbg
+.DS_Store
