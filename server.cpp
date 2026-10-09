@@ -318,10 +318,22 @@ bool validateProgram(const char *sourcePath)
     return true;
     // for each func defined there should be exactly one func_end and no nested funcs allowed - 
 }
-
 // PASS 0x1: RESOLVE() -> resolve.bin
 int64_t writeResolveRecord(FILE *f, int64_t offsetField, const string &text)
 {
+    int64_t start = ftell(f);          
+    if (start < 0)
+    {
+        return -1;
+    } 
+    int32_t size = (int32_t)text.size();
+    fwrite(&offsetField, sizeof(int64_t), 1, f);   
+    fwrite(&size, sizeof(int32_t), 1, f);          
+    if (size > 0)
+    {
+        fwrite(text.data(), 1, size, f); 
+    }           
+    return start;
     // writes one [offset(8B)][size(4B)][string] record at the current file position
     // returns this record's own starting byte position
 }
@@ -388,7 +400,7 @@ void writeTdbg(Timeline &timeline, const char *tdbgPath)
     // update the header
 }
 // main section
-int32_t realmain()
+int32_t main()
 {
 
     if (!validateProgram("source.bin"))

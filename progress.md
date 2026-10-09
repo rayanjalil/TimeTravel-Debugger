@@ -8,3 +8,6 @@ made writeheader function in which i had to write for stepcount and index offset
 4/10/2026
 Day 3:
 started today by making validate program function which sees if the function is valid or not used readsourceline , firstword and second word in this function too now moving too write resolverecord
+9/10/2026
+Day 4:
+Wrote writeresolverecord which writes the one line of code in file of [offset(8B)][string_size(4B)][string].
