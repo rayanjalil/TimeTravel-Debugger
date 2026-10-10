@@ -367,6 +367,103 @@ int64_t resolveProgram(const char *sourcePath, const char *resolveBinPath)
     int32_t funcCount = 0;
     PendingPatch patches[MAX_PATCHES];
     int32_t patchCount = 0;
+    ifstream in(sourcePath);
+    if(!in)
+    {
+        cout << "Cannot open source file" << endl;
+        return -1;
+    }
+    FILE *out = fopen(resolveBinPath, "wb+");
+    if(!out)
+    {
+        cout << "Cannot create resolve.bin" << endl;
+        return -1;
+    }
+    string line;
+    while(readSourceLine(in,line))
+    {
+        string word = firstWord(line);
+        int64_t position = writeResolveRecord(out,0,line);
+        if(position < 0)
+        {
+            cout << "Writing error on resolve.bin" << endl;
+            fclose(out);
+            return -1;
+        }
+        if(word == "func")
+        {
+            string name = secondWord(line);
+            for(int32_t i = 0 ; i < funcCount ; i++)
+            {
+                if(funcArray[i].funcName == name)
+                {
+                    cout << "Duplicate function : " << name << endl;
+                    fclose(out);
+                    return -1;
+                }
+            }
+            if(funcCount >= MAX_FUNCS)
+            {
+                cout << "Too many functions ( max " << MAX_FUNCS << ")" << endl;
+                fclose(out);
+                return -1;
+            }
+            funcArray[funcCount].funcName = name;
+            funcArray[funcCount].byteOffsetInResolveBin = position;
+            funcCount++;
+        }
+        else if(word == "call")
+        {
+            string target = secondWord(line);
+            if(target.empty())
+            {
+                cout << "Call with no target : " << line << endl;
+                fclose(out);
+                return -1;
+            }
+            if(patchCount >= MAX_PATCHES)
+            {
+                cout << "Too many call instructions (max " << MAX_PATCHES << ")" << endl;
+                fclose(out);
+                return -1;
+            }
+            patches[patchCount].byteOffsetOfOffsetField = position;
+            patches[patchCount].targetFuncName = target;
+            patchCount++;
+        }
+    }
+    for (int32_t p = 0; p < patchCount; p++)
+    {
+        int64_t target = -1;
+        for (int32_t i = 0; i < funcCount; i++)
+        {
+            if (funcArray[i].funcName == patches[p].targetFuncName)
+            {
+                target = funcArray[i].byteOffsetInResolveBin;
+                break;
+            }
+        }
+        if (target < 0)
+        {
+            cout << "Call to undefined function: " << patches[p].targetFuncName << endl;
+            fclose(out);
+            return -1;
+        }
+        if (fseek(out, (long)patches[p].byteOffsetOfOffsetField, SEEK_SET) != 0 || fwrite(&target, sizeof(int64_t), 1, out) != 1)
+        {
+            cout << "Patch error on resolve.bin" << endl;
+            fclose(out);
+            return -1;
+        }
+    }
+    fclose(out);
+    for (int32_t i = 0; i < funcCount; i++)
+    {
+        if (funcArray[i].funcName == "main")
+            return funcArray[i].byteOffsetInResolveBin;
+    }
+    cout << "No main function" << endl;
+    return -1;
     // Every source line becomes one record holding the raw line, as-is.
     // resolve() only PEEKS at the leading word(s) -- enough to spot FUNC
     // (remember its position) and CALL (remember which function it needs
@@ -428,12 +525,9 @@ int32_t main()
         // send an error response instead of a .tdbg file
         return 1;
     }
-
     int64_t mainOffset = resolveProgram("source.bin", "resolve.bin");
-
     Timeline timeline;
     executeProgram("resolve.bin", mainOffset, timeline);
-
     writeTdbg(timeline, "session.tdbg");
 
     return 0;

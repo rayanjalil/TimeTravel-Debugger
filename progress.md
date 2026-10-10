@@ -11,3 +11,6 @@ started today by making validate program function which sees if the function is 
 9/10/2026
 Day 4:
 Wrote writeresolverecord which writes the one line of code in file of [offset(8B)][string_size(4B)][string]. wrote readresolverecord which reads the file.
+10/10/2026
+Day 5:
+Wrote resolveprogram function which opens the source file and reads it and then writes in resolve.bin it first checks whether line are valids or not.
