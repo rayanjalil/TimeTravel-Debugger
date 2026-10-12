@@ -488,12 +488,63 @@ struct Token
 };
 int32_t tokenizeLine(const string &line, Token tokens[], int32_t maxTokens)
 {
+    size_t i = 0 , n = line.size();
+    int32_t count = 0;
+    while(true)
+    {
+        while(i < n && (line[i] == ' ' || line[i] == '\t'))
+        {
+            i++;
+        }
+        if(i >= n)
+        {
+            break;
+        }
+        size_t start = i;
+        while (i < n && line[i] != ' ' && line[i] != '\t')
+        {
+            i++;
+        }
+        string word = line.substr(start, i - start);
+        if (count == 0 && word.compare(0, 2, "//") == 0)
+        {
+            return 0;
+        }
+        if (count >= maxTokens)
+        {
+            return -1;                                  
+        }
+        tokens[count].type = (count == 0) ? KEYWORD : (count == 1) ? IDENTIFIER : PARAM;
+        tokens[count].text = word;
+        count++;
+    }
+    if (count == 0)
+    { 
+        return 0;                                       
+    }
+    const string &kw = tokens[0].text;
+    bool isArith = (kw == "set" || kw == "add" || kw == "sub" || kw == "mul" || kw == "div");
+    bool known = isArith || kw == "func" || kw == "func_end" || kw == "call";
+    if (!known)
+    {
+        return -1;
+    }
+    if (kw != "func_end" && count < 2)
+    {       
+        return -1;
+    }
+    if (isArith && count < 3)
+    {
+        return -1;
+    }
+    return count;
     // first word is always a instruction keyword
     // instruction set = [func, func_end, call, set, add, sub, mul and div]
     // next word is identifier like name of a function, variable name
     // after identifier all are the params/arg, space separated
 }
 Snapshot *buildSnapshot(Stack<Frame> &callStack)
+
 {
     // build the snapshot based on the callStack given
 }
