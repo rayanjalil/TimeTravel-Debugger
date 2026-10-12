@@ -550,8 +550,244 @@ Snapshot *buildSnapshot(Stack<Frame> &callStack)
     return s;
     // build the snapshot based on the callStack given
 }
+bool parseInteger(const string &text, int32_t &out)
+{
+    size_t i = 0;
+    bool negative = false;
+    if (i < text.size() && text[i] == '-')
+    {
+        negative = true;
+        i++;
+    }
+    if (i >= text.size())
+        return false;
+    int64_t value = 0;
+    for (; i < text.size(); i++)
+    {
+        if (text[i] < '0' || text[i] > '9')
+            return false;
+        value = value * 10 + (text[i] - '0');
+        if (value > 2147483648LL)
+            return false;
+    }
+    if (negative)
+        value = -value;
+    if (value < INT32_MIN || value > INT32_MAX)
+        return false;
+    out = (int32_t)value;
+    return true;
+}
+Variable *findVar(Frame &fr, const string &name, int32_t *argIndex)
+{
+    for (int32_t i = 0; i < fr.argc; i++)
+    {
+        if (fr.argv[i].name == name)
+        {
+            *argIndex = i;
+            return &fr.argv[i];
+        }
+    }
+    for (int32_t i = 0; i < fr.localCount; i++)
+    {
+        if (fr.locals[i].name == name)
+        {
+            *argIndex = -1;
+            return &fr.locals[i];
+        }
+    }
+    *argIndex = -1;
+    return nullptr;
+}
+int32_t operandValue(Frame &fr, const string &token)
+{
+    int32_t literal;
+    if (parseInteger(token, literal))
+        return literal;
+    int32_t ai;
+    Variable *v = findVar(fr, token, &ai);
+    if (v == nullptr)
+        throw runtime_error("Undefined variable: " + token);
+    return v->value;
+}
+void writeThrough(Frame *frames[], string (*bound)[MAX_VARS_PER_FRAME], int32_t level, int32_t argIdx, int32_t val)
+{
+    int32_t d = level;
+    int32_t idx = argIdx;
+    while (true)
+    {
+        frames[d]->argv[idx].value = val;
+        if (d == 0)
+            return;
+        int32_t ai;
+        Variable *v = findVar(*frames[d - 1], bound[d][idx], &ai);
+        if (v == nullptr)
+            throw runtime_error("Broken argument binding: " + bound[d][idx]);
+        v->value = val;
+        if (ai < 0)
+            return;
+        d--;
+        idx = ai;
+    }
+}
 void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &timeline)
 {
+    FILE *f = fopen(resolveBinPath, "rb");
+    if (!f)
+    {
+        cout << "Cannot open resolve.bin" << endl;
+        return;
+    }
+    Stack<Frame> callStack;
+    Frame *frames[MAX_STACK_DEPTH];
+    string boundTo[MAX_STACK_DEPTH][MAX_VARS_PER_FRAME];
+    Token tokens[MAX_TOKENS];
+    string text;
+    try
+    {
+        if (fseek(f, (long)mainOffset, SEEK_SET) != 0)
+            throw runtime_error("Cannot seek to main");
+        if (readResolveRecord(f, text) < 0)
+            throw runtime_error("Cannot read main header");
+        int32_t n = tokenizeLine(text, tokens, MAX_TOKENS);
+        if (n < 2 || tokens[0].text != "func")
+            throw runtime_error("Main offset does not point to a func record");
+        Frame mainFrame = Frame();
+        mainFrame.func_name = tokens[1].text;
+        mainFrame.argc = 0;
+        mainFrame.returnLine = -1;
+        mainFrame.localCount = 0;
+        callStack.push(mainFrame);
+        frames[0] = &callStack.peek();
+        while (true)
+        {
+            long pos = ftell(f);
+            int64_t offsetField = readResolveRecord(f, text);
+            if (offsetField < 0)
+                throw runtime_error("Reached end of file before main ended");
+            n = tokenizeLine(text, tokens, MAX_TOKENS);
+            if (n < 0)
+                throw runtime_error("Invalid instruction: " + text);
+            if (n == 0)
+                continue;
+            const string &kw = tokens[0].text;
+            int32_t level = callStack.depth() - 1;
+            Frame &cur = *frames[level];
+            if (kw == "func")
+            {
+                throw runtime_error("Unexpected func inside function body");
+            }
+            else if (kw == "call")
+            {
+                if (fseek(f, (long)offsetField, SEEK_SET) != 0)
+                    throw runtime_error("Cannot seek to function");
+                string headerText;
+                if (readResolveRecord(f, headerText) < 0)
+                    throw runtime_error("Cannot read function header");
+                Token headerTokens[MAX_TOKENS];
+                int32_t hn = tokenizeLine(headerText, headerTokens, MAX_TOKENS);
+                if (hn < 2 || headerTokens[0].text != "func")
+                    throw runtime_error("Call target is not a function: " + text);
+                if (hn != n)
+                    throw runtime_error("Argument count mismatch: " + text);
+                Frame fr = Frame();
+                fr.func_name = headerTokens[1].text;
+                fr.argc = hn - 2;
+                fr.returnLine = (int32_t)pos;
+                fr.localCount = 0;
+                for (int32_t i = 0; i < fr.argc; i++)
+                {
+                    int32_t ai;
+                    Variable *v = findVar(cur, tokens[2 + i].text, &ai);
+                    if (v == nullptr)
+                        throw runtime_error("Undefined variable: " + tokens[2 + i].text);
+                    fr.argv[i].name = headerTokens[2 + i].text;
+                    fr.argv[i].value = v->value;
+                }
+                callStack.push(fr);
+                int32_t newLevel = callStack.depth() - 1;
+                frames[newLevel] = &callStack.peek();
+                for (int32_t i = 0; i < fr.argc; i++)
+                    boundTo[newLevel][i] = tokens[2 + i].text;
+
+                timeline.record(buildSnapshot(callStack));
+            }
+            else if (kw == "func_end")
+            {
+                if (callStack.depth() == 1)
+                {
+                    timeline.record(buildSnapshot(callStack));
+                    break;
+                }
+                Frame done = callStack.pop();
+                if (fseek(f, (long)done.returnLine, SEEK_SET) != 0)
+                    throw runtime_error("Cannot seek to return line");
+                string skipText;
+                if (readResolveRecord(f, skipText) < 0)
+                    throw runtime_error("Cannot read return record");
+                timeline.record(buildSnapshot(callStack));
+            }
+            else
+            {
+                if (n != 3)
+                    throw runtime_error("Expected exactly one operand: " + text);
+
+                const string &name = tokens[1].text;
+                int32_t operand = operandValue(cur, tokens[2].text);
+                int32_t ai;
+                Variable *target = findVar(cur, name, &ai);
+                int32_t result;
+                if (kw == "set")
+                {
+                    result = operand;
+                }
+                else
+                {
+                    if (target == nullptr)
+                        throw runtime_error("Undefined variable: " + name);
+                    int64_t a = target->value;
+                    int64_t b = operand;
+                    int64_t r;
+                    if (kw == "add")
+                        r = a + b;
+                    else if (kw == "sub")
+                        r = a - b;
+                    else if (kw == "mul")
+                        r = a * b;
+                    else
+                    {
+                        if (b == 0)
+                            throw runtime_error("Division by zero: " + text);
+                        r = a / b;
+                    }
+                    if (r < INT32_MIN || r > INT32_MAX)
+                        throw runtime_error("Integer overflow: " + text);
+                    result = (int32_t)r;
+                }
+                if (target == nullptr)
+                {
+                    if (cur.localCount >= MAX_VARS_PER_FRAME)
+                        throw runtime_error("Too many local variables in " + cur.func_name);
+                    cur.locals[cur.localCount].name = name;
+                    cur.locals[cur.localCount].value = result;
+                    cur.localCount++;
+                }
+                else if (ai >= 0)
+                {
+                    writeThrough(frames, boundTo, level, ai, result);
+                }
+                else
+                {
+                    target->value = result;
+                }
+                timeline.record(buildSnapshot(callStack));
+            }
+        }
+    }
+    catch (const exception &e)
+    {
+        cout << "Runtime error: " << e.what() << endl;
+    }
+    fclose(f);
     // initialize the call stack
     // make the main frame
     // push main frame on the call stack
@@ -559,10 +795,75 @@ void executeProgram(const char *resolveBinPath, int64_t mainOffset, Timeline &ti
     // implementation:
     // execute line by line, and according to the keyword perform action
 }
-
+void writeString(FILE *f, const string &s)
+{
+    int32_t size = (int32_t)s.size();
+    fwrite(&size, sizeof(int32_t), 1, f);
+    if (size > 0)
+    {
+        fwrite(s.data(), 1, size, f);
+    }
+}
+void writeVariable(FILE *f, const Variable &v)
+{
+    writeString(f, v.name);
+    fwrite(&v.value, sizeof(int32_t), 1, f);
+}
+void writeFrame(FILE *f, const Frame &fr)
+{
+    writeString(f, fr.func_name);
+    fwrite(&fr.argc, sizeof(int32_t), 1, f);
+    for (int32_t i = 0; i < fr.argc; i++)
+    {
+        writeVariable(f, fr.argv[i]);
+    }
+    fwrite(&fr.returnLine, sizeof(int32_t), 1, f);
+    fwrite(&fr.localCount, sizeof(int32_t), 1, f);
+    for (int32_t i = 0; i < fr.localCount; i++)
+    {
+        writeVariable(f, fr.locals[i]);
+    }
+}
+void writeSnapshot(FILE *f, const Snapshot &s)
+{
+    fwrite(&s.stackDepth, sizeof(int32_t), 1, f);
+    for (int32_t i = 0; i < s.stackDepth; i++)
+    {
+        writeFrame(f, s.callStack[i]);
+    }
+}
 // PASS 0x3: SERIALIZE TIMELINE
 void writeTdbg(Timeline &timeline, const char *tdbgPath)
 {
+    FILE *f = fopen(tdbgPath, "wb");
+    if (!f)
+    {
+        cout << "Cannot create " << tdbgPath << endl;
+        return;
+    }
+    TTDBHeader header;
+    header.magic[0] = 'T';
+    header.magic[1] = 'T';
+    header.magic[2] = 'D';
+    header.magic[3] = 'B';
+    header.version = 1;
+    header.stepCount = timeline.getStepCount();
+    header.indexOffset = 0;
+    writeHeader(f, header);
+    int32_t steps = timeline.getStepCount();
+    int64_t *index = new int64_t[steps > 0 ? steps : 1];
+    int32_t i = 0;
+    for (TimelineNode *node = timeline.begin(); node != nullptr; node = node->next)
+    {
+        index[i++] = ftell(f);
+        writeSnapshot(f, *node->data);
+    }
+    header.indexOffset = ftell(f);
+    fwrite(index, sizeof(int64_t), steps, f);
+    fseek(f, 0, SEEK_SET);
+    writeHeader(f, header);
+    fclose(f);
+    delete[] index;
     // placeholder for header
     // index array of the size of stepcount from the timeline
     // placing each snapshot in the file while maintaining the index(starting point of each nth snapshot)

@@ -16,4 +16,4 @@ Day 5:
 Wrote resolveprogram function which opens the source file and reads it and then writes in resolve.bin it first checks whether line are valids or not.
 12/10/2026
 Day 6:
-Wrote tokenize line function which reads three words KEYWORD , IDENTIFIER , PARAM. wrote build snapshot function which creates new snapshot.
+Wrote tokenize line function which reads three words KEYWORD , IDENTIFIER , PARAM. wrote build snapshot function which creates new snapshot. wrote write tdbg i made small helpers that save the data piece by piece writeString saves a string by writing its length and then its letters writeVariable saves a variables name and value writeFrame saves one functions frame, and writeSnapshot saves a full snapshot writeTdbg then calls them for every step and notes where each snapshot.wrote execute program made helper functions parseInteger checks whether a word like 10 is a number or a variable name findVar searches a functions parameters and local variables for a name operandValue uses those two to turn an operand into a number whether it was typed as a number or is stored in a variable writeThrough handles the by-eference part.
