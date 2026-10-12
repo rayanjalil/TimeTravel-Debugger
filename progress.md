@@ -16,4 +16,4 @@ Day 5:
 Wrote resolveprogram function which opens the source file and reads it and then writes in resolve.bin it first checks whether line are valids or not.
 12/10/2026
 Day 6:
-Wrote tokenize line function which reads three words KEYWORD , IDENTIFIER , PARAM 
+Wrote tokenize line function which reads three words KEYWORD , IDENTIFIER , PARAM. wrote build snapshot function which creates new snapshot.
