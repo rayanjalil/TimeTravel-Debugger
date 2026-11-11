@@ -21,4 +21,4 @@ Wrote tokenize line function which reads three words KEYWORD , IDENTIFIER , PARA
 Phase 1:
 11/11/2026
 Day 1:
-Made queue class and wrote all the functions in the class.
+Made queue class and wrote all the functions in the class. Wrote sendAll function which calls send() in loop until all n bytes are sent and returns false if connection fails.
