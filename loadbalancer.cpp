@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <stdexcept>
 #include "helper.h"
 using namespace std;
 
@@ -68,27 +69,59 @@ public:
     // Implement these functions:
     Queue()
     {
-
+        front = nullptr;
+        rear = nullptr;
+        count = 0;
     }
     ~Queue()
     {
-
+        while(front != nullptr)
+        {
+            Node* temp = front;
+            front = front->next;
+            delete temp;
+        }
+        rear = nullptr;
+        count = 0;
     }
     void enqueue(const T &val)
     {
-
+        Node* ode = new Node{val, nullptr};
+        if(rear == nullptr)
+        {
+            front = rear = node;
+        }
+        else
+        {
+            rear->next = node;
+            rear = node;
+        }
+        count++;
     }
     T dequeue()
     {
-
+        if(isEmpty())
+        {
+            throw underflow_error("queue is empty");
+        }
+        Node* temp = front;
+        T value = temp->data;
+        front = front->next;
+        if(front == nullptr)
+        {
+            rear = nullptr;
+        }
+        delete temp;
+        count--;
+        return value;
     }
     bool isEmpty()
     {
-        
+        return count == 0;
     }
     int size()
     {
-
+        return count;
     }
 };
 
