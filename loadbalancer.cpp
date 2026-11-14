@@ -157,8 +157,28 @@ bool sendAll(int sock, const char *buf, size_t n)
     // send() may send fewer bytes than asked for, so keep calling it until all n bytes are sent.
     
 }
+unsigned int checksumUpdate(unsigned int sum, const char *buf, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        sum = sum * 31 + (unsigned char)buf[i];
+    }
+    return sum;
+}
 bool sendError(int sock, const string &message)
 {
+    char status = 1;
+    unsigned int checksum = checksumUpdate(0, &status, 1);
+    checksum = checksumUpdate(checksum, message.data(), message.size());
+    if (!sendAll(sock, &status, 1))
+    {
+        return false;
+    }
+    if (!sendAll(sock, message.data(), message.size()))
+    {
+        return false;
+    }
+    return sendAll(sock, (const char *)&checksum, 4);
     // Reply format: [status: 1 byte][payload until close][checksum: 4 bytes].
     // For an error: send one byte with value 1, then the message text. 
 }
