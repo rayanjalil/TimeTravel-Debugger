@@ -27,4 +27,4 @@ Day 2:
 Wrote senderror and made a helper function for checksum returns false if sending fails.
 15/11/2026
 Day 3:
-wrote createlisten socket which creates a TCP socket which binds it to the given port and starts listening prints an error and exits if anything fails.
+wrote createlisten socket which creates a TCP socket which binds it to the given port and starts listening prints an error and exits if anything fails. wrote connectToServer creates a TCP socket and connects it to the given IP and port returns the socket or -1 if the connection fails.
