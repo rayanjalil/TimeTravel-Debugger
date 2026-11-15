@@ -25,3 +25,6 @@ Made queue class and wrote all the functions in the class. Wrote sendAll functio
 14/11/2026
 Day 2:
 Wrote senderror and made a helper function for checksum returns false if sending fails.
+15/11/2026
+Day 3:
+wrote createlisten socket which creates a TCP socket which binds it to the given port and starts listening prints an error and exits if anything fails.

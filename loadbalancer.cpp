@@ -184,6 +184,29 @@ bool sendError(int sock, const string &message)
 }
 int createListenSocket(int port)
 { 
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+    {
+        cerr << "Cannot create the listening socket" << endl;
+        exit(1);
+    }
+    int yes = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
+    if (::bind(sock, (sockaddr *)&addr, sizeof(addr)) < 0)
+    {
+        cerr << "bind failed: port " << port << " may already be in use" << endl;
+        exit(1);
+    }
+    if (listen(sock, LISTEN_BACKLOG) < 0)
+    {
+        cerr << "listen failed" << endl;
+        exit(1);
+    }
+    return sock;
     // Create a TCP socket with SOCK_CLOEXEC(flag).
     // set SO_REUSEADDR so we can restart the load balancer right away.
     // bind() to the port on any address, then listen(LISTEN_BACKLOG).
